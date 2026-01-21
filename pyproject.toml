@@ -23,9 +23,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://raederan.github.io/llm4eln-digest/"
-Repository = "https://github.com/raederan/llm4eln-digest"
-Documentation = "https://raederan.github.io/llm4eln-digest/"
+Homepage = "https://LLM4ELN.github.io/llm4eln-digest/"
+Repository = "https://github.com/LLM4ELN/llm4eln-digest"
+Documentation = "https://LLM4ELN.github.io/llm4eln-digest/"
 
 [dependency-groups]
 dev = [

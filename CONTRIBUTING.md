@@ -9,7 +9,7 @@ You can contribute in many ways:
 
 ## Report Bugs
 
-Report bugs at https://github.com/raederan/llm4eln-digest/issues
+Report bugs at https://github.com/LLM4ELN/llm4eln-digest/issues
 
 If you are reporting a bug, please include:
 
@@ -33,7 +33,7 @@ llm4eln-digest could always use more documentation, whether as part of the offic
 
 ## Submit Feedback
 
-The best way to send feedback is to file an issue at https://github.com/raederan/llm4eln-digest/issues.
+The best way to send feedback is to file an issue at https://github.com/LLM4ELN/llm4eln-digest/issues.
 
 If you are proposing a new feature:
 

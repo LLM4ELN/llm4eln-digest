@@ -1,15 +1,15 @@
 # llm4eln-digest
 
-[![Release](https://img.shields.io/github/v/release/raederan/llm4eln-digest)](https://img.shields.io/github/v/release/raederan/llm4eln-digest)
-[![Build status](https://img.shields.io/github/actions/workflow/status/raederan/llm4eln-digest/main.yml?branch=main)](https://github.com/raederan/llm4eln-digest/actions/workflows/main.yml?query=branch%3Amain)
-[![codecov](https://codecov.io/gh/raederan/llm4eln-digest/branch/main/graph/badge.svg)](https://codecov.io/gh/raederan/llm4eln-digest)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/raederan/llm4eln-digest)](https://img.shields.io/github/commit-activity/m/raederan/llm4eln-digest)
-[![License](https://img.shields.io/github/license/raederan/llm4eln-digest)](https://img.shields.io/github/license/raederan/llm4eln-digest)
+[![Release](https://img.shields.io/github/v/release/LLM4ELN/llm4eln-digest)](https://img.shields.io/github/v/release/LLM4ELN/llm4eln-digest)
+[![Build status](https://img.shields.io/github/actions/workflow/status/LLM4ELN/llm4eln-digest/main.yml?branch=main)](https://github.com/LLM4ELN/llm4eln-digest/actions/workflows/main.yml?query=branch%3Amain)
+[![codecov](https://codecov.io/gh/LLM4ELN/llm4eln-digest/branch/main/graph/badge.svg)](https://codecov.io/gh/LLM4ELN/llm4eln-digest)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/LLM4ELN/llm4eln-digest)](https://img.shields.io/github/commit-activity/m/LLM4ELN/llm4eln-digest)
+[![License](https://img.shields.io/github/license/LLM4ELN/llm4eln-digest)](https://img.shields.io/github/license/LLM4ELN/llm4eln-digest)
 
 This is a template repository for Python projects that use uv for their dependency management.
 
-- **Github repository**: <https://github.com/raederan/llm4eln-digest/>
-- **Documentation** <https://raederan.github.io/llm4eln-digest/>
+- **Github repository**: <https://github.com/LLM4ELN/llm4eln-digest/>
+- **Documentation** <https://LLM4ELN.github.io/llm4eln-digest/>
 
 ## Getting started with your project
 
@@ -21,7 +21,7 @@ First, create a repository on GitHub with the same name as this project, and the
 git init -b main
 git add .
 git commit -m "init commit"
-git remote add origin git@github.com:raederan/llm4eln-digest.git
+git remote add origin git@github.com:LLM4ELN/llm4eln-digest.git
 git push -u origin main
 ```
 
@@ -63,8 +63,8 @@ To enable the code coverage reports, see [here](https://fpgmaas.github.io/cookie
 ## Releasing a new version
 
 - Create an API Token on [PyPI](https://pypi.org/).
-- Add the API Token to your projects secrets with the name `PYPI_TOKEN` by visiting [this page](https://github.com/raederan/llm4eln-digest/settings/secrets/actions/new).
-- Create a [new release](https://github.com/raederan/llm4eln-digest/releases/new) on Github.
+- Add the API Token to your projects secrets with the name `PYPI_TOKEN` by visiting [this page](https://github.com/LLM4ELN/llm4eln-digest/settings/secrets/actions/new).
+- Create a [new release](https://github.com/LLM4ELN/llm4eln-digest/releases/new) on Github.
 - Create a new tag in the form `*.*.*`.
 
 For more details, see [here](https://fpgmaas.github.io/cookiecutter-uv/features/cicd/#how-to-trigger-a-release).

@@ -19,7 +19,7 @@ classifiers = [
 ]
 dependencies = [
     "langchain>=1.2.6",
-    "llm-sandbox>=0.3.33",
+    "llm-sandbox[docker]>=0.3.33",
 ]
 
 [project.urls]

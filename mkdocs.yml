@@ -1,0 +1,52 @@
+site_name: llm4eln-digest
+repo_url: https://github.com/raederan/llm4eln-digest
+site_url: https://raederan.github.io/llm4eln-digest
+site_description: This is a template repository for Python projects that use uv for their dependency management.
+site_author: llm4eln
+edit_uri: edit/main/docs/
+repo_name: raederan/llm4eln-digest
+copyright: Maintained by <a href="https://raederan.com">raederan</a>.
+
+nav:
+  - Home: index.md
+  - Modules: modules.md
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["src/llm4eln_digest"]
+theme:
+  name: material
+  feature:
+    tabs: true
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: deep orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/raederan/llm4eln-digest
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/llm4eln-digest
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true

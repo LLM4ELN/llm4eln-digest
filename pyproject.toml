@@ -17,6 +17,10 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+dependencies = [
+    "langchain>=1.2.6",
+    "llm-sandbox>=0.3.33",
+]
 
 [project.urls]
 Homepage = "https://raederan.github.io/llm4eln-digest/"

@@ -1,18 +1,11 @@
 """Backend logic for AI interface management and message processing."""
 
-from collections.abc import Callable
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from llm4eln_digest.utils.ai_interface import (
-    AiInterface,
-    AnthropicModel,
-    AzureOpenAiModel,
-    ModelProvider,
-    create_anthropic_interface,
-    create_azure_interface,
-)
+from llm4eln_digest.utils.ai_interface import AiInterface, create_interface
+from llm4eln_digest.utils.config import ModelConfig, ProviderConfig, load_config
 
 
 class AiBackend:
@@ -28,92 +21,52 @@ class AiBackend:
 
     def __init__(self) -> None:
         """Initialize the AI backend."""
-        # Build provider to model enum mapping
-        self.provider_model_map = {
-            ModelProvider.ANTHROPIC: AnthropicModel,
-            ModelProvider.AZURE_OPENAI: AzureOpenAiModel,
-        }
+        self._config = load_config()
 
-        # Build provider to interface creator mapping
-        self.provider_interface_map: dict[ModelProvider, Callable[..., AiInterface]] = {
-            ModelProvider.ANTHROPIC: create_anthropic_interface,
-            ModelProvider.AZURE_OPENAI: create_azure_interface,
-        }
-
-        # Build provider display names
-        self.provider_display_names = {
-            ModelProvider.ANTHROPIC: "Anthropic Foundry",
-            ModelProvider.AZURE_OPENAI: "Azure OpenAI",
-        }
-
-        # Dynamically build model options from available enums for each provider
-        self.provider_models: dict[ModelProvider, dict[str, Any]] = {}
-        for provider, model_enum in self.provider_model_map.items():
-            self.provider_models[provider] = {self.format_model_name(model.name): model for model in model_enum}
+        # Build provider_models dict: {ProviderConfig: {display_name: ModelConfig}}
+        self.provider_models: dict[ProviderConfig, dict[str, ModelConfig]] = {}
+        for provider in self._config.providers.values():
+            self.provider_models[provider] = {m.name: m for m in provider.models}
 
         # Current configuration
-        self.current_provider = ModelProvider.ANTHROPIC
-        self.current_model = next(iter(self.provider_models[self.current_provider].values()))
+        self.current_provider = self._config.default_provider
+        self.current_model: ModelConfig = self.current_provider.models[0]
         self.current_temperature = 0.7
-        self.current_tools: list = []
+        self.current_tools: list[Any] = []
 
         # AI interface
         self.ai_interface: AiInterface | None = None
         self._create_ai_interface()
 
-    def get_available_providers(self) -> dict[str, ModelProvider]:
+    def get_available_providers(self) -> dict[str, ProviderConfig]:
         """Get available providers with display names.
 
         Returns:
-            Dictionary mapping display names to provider enums
+            Dictionary mapping display names to provider configs
         """
-        return {self.provider_display_names[p]: p for p in ModelProvider}
+        return {p.display_name: p for p in self._config.providers.values()}
 
-    def get_available_models(self, provider: ModelProvider) -> dict[str, Any]:
+    def get_available_models(self, provider: ProviderConfig) -> dict[str, ModelConfig]:
         """Get available models for a specific provider.
 
         Args:
             provider: The provider to get models for
 
         Returns:
-            Dictionary mapping model display names to model enums
+            Dictionary mapping model display names to ModelConfig instances
         """
         return self.provider_models[provider]
 
-    def get_provider_display_name(self, provider: ModelProvider) -> str:
+    def get_provider_display_name(self, provider: ProviderConfig) -> str:
         """Get display name for a provider.
 
         Args:
-            provider: The provider enum
+            provider: The provider config
 
         Returns:
             Human-readable provider name
         """
-        return self.provider_display_names[provider]
-
-    @staticmethod
-    def format_model_name(enum_name: str) -> str:
-        """Format enum name to human-readable model name.
-
-        Args:
-            enum_name: Enum name like "SONNET_4_5" or "GPT_4O"
-
-        Returns:
-            Formatted name like "Sonnet 4.5" or "GPT-4o"
-        """
-        # Replace underscores with spaces and title case
-        formatted = enum_name.replace("_", " ").title()
-
-        # Special handling for version numbers: "4 5" -> "4.5", "3 5" -> "3.5", "5 1" -> "5.1"
-        formatted = formatted.replace(" 4 5", " 4.5").replace(" 3 5", " 3.5").replace(" 5 1", " 5.1")
-
-        # Special handling for GPT models
-        if formatted.startswith("Gpt"):
-            formatted = formatted.replace("Gpt", "GPT-", 1)
-            # "GPT- 4O" -> "GPT-4o", "GPT- 35" -> "GPT-3.5"
-            formatted = formatted.replace(" 4O", "4o").replace(" 35", "3.5")
-
-        return formatted
+        return provider.display_name
 
     def _create_ai_interface(self, preserve_history: bool = True) -> None:
         """Create AI interface based on current configuration.
@@ -122,15 +75,13 @@ class AiBackend:
             preserve_history: If True, preserve conversation history from existing interface
         """
         # Save existing conversation history if requested
-        existing_history = []
+        existing_history: list[Any] = []
         if preserve_history and self.ai_interface is not None:
             existing_history = self.ai_interface.conversation_history.copy()
 
-        # Get the interface creator function for the current provider
-        interface_creator = self.provider_interface_map[self.current_provider]
-
-        # Create new interface using the appropriate creator function
-        self.ai_interface = interface_creator(
+        # Create new interface using the unified factory
+        self.ai_interface = create_interface(
+            provider=self.current_provider,
             model=self.current_model,
             temperature=self.current_temperature,
             system_message="You are a helpful ELN assistant.",
@@ -141,41 +92,40 @@ class AiBackend:
         if preserve_history and existing_history:
             self.ai_interface.conversation_history = existing_history
 
-    def update_provider(self, provider: ModelProvider) -> tuple[str, str]:
+    def update_provider(self, provider: ProviderConfig) -> tuple[str, str]:
         """Update the current provider and reset model.
 
         Args:
             provider: New provider to use
 
         Returns:
-            Tuple of (provider_display_name, model_name) for UI notification
+            Tuple of (provider_display_name, model_value) for UI notification
         """
         self.current_provider = provider
 
         # Update model to first available for new provider
-        available_models = self.provider_models[provider]
-        self.current_model = next(iter(available_models.values()))
+        self.current_model = provider.models[0]
 
         # Recreate interface (clear history when changing providers)
         self._create_ai_interface(preserve_history=False)
 
         return (
-            self.provider_display_names[provider],
+            provider.display_name,
             self.current_model.value,
         )
 
-    def update_model(self, model: Any) -> str:
+    def update_model(self, model: ModelConfig) -> str:
         """Update the current model.
 
         Args:
             model: New model to use
 
         Returns:
-            Model name for UI notification
+            Model value for UI notification
         """
         self.current_model = model
         self._create_ai_interface(preserve_history=True)
-        return str(model.value)
+        return model.value
 
     def update_temperature(self, temperature: float) -> None:
         """Update the temperature setting.
@@ -186,7 +136,7 @@ class AiBackend:
         self.current_temperature = temperature
         self._create_ai_interface(preserve_history=True)
 
-    def update_tools(self, tools: list) -> int:
+    def update_tools(self, tools: list[Any]) -> int:
         """Update the available tools.
 
         Args:
@@ -204,7 +154,7 @@ class AiBackend:
         if self.ai_interface:
             self.ai_interface.clear_history()
 
-    def get_conversation_history(self) -> list:
+    def get_conversation_history(self) -> list[Any]:
         """Get the current conversation history.
 
         Returns:
@@ -214,7 +164,7 @@ class AiBackend:
             return self.ai_interface.conversation_history
         return []
 
-    def set_conversation_history(self, history: list) -> None:
+    def set_conversation_history(self, history: list[Any]) -> None:
         """Set the conversation history.
 
         Args:
@@ -293,7 +243,7 @@ class AiBackend:
 
         return "Maximum tool execution iterations reached."
 
-    async def _execute_tool_calls(self, tool_calls: list) -> list[ToolMessage]:
+    async def _execute_tool_calls(self, tool_calls: list[Any]) -> list[ToolMessage]:
         """Execute a list of tool calls.
 
         Args:
@@ -348,7 +298,7 @@ class AiBackend:
 
         return tool_results
 
-    def export_chat_data(self, provider: str, model: str, temperature: float, messages: list) -> dict:
+    def export_chat_data(self, provider: str, model: str, temperature: float, messages: list[Any]) -> dict[str, Any]:
         """Export chat data for download.
 
         Args:
@@ -362,7 +312,7 @@ class AiBackend:
         """
         from datetime import datetime
 
-        chat_data = {
+        chat_data: dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "provider": provider,
             "model": model,
@@ -382,7 +332,7 @@ class AiBackend:
 
         return chat_data
 
-    def restore_chat_data(self, chat_data: dict) -> None:
+    def restore_chat_data(self, chat_data: dict[str, Any]) -> None:
         """Restore conversation history from chat data.
 
         Args:

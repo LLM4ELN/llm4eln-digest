@@ -60,8 +60,16 @@ make publish              # Publish to PyPI (requires PYPI_TOKEN)
   - `pydantic_sparql.py`: SPARQL query handling with Pydantic models
 
 - **utils/**: Shared utilities
-  - `ai_interface.py`: Model enums and interfaces for Anthropic (Claude) and Azure OpenAI models
+  - `config.py`: YAML configuration loader (`ModelConfig`, `ProviderConfig`, `AppConfig` dataclasses, `load_config()`)
+  - `ai_interface.py`: Unified AI interface with provider registry (reads provider/model definitions from `config.yml`)
   - `osl_eln.py`: ELN-specific utilities
+
+### Configuration
+
+LLM providers and models are defined in `config.yml` at the project root. To add or remove a provider/model, edit that file — no Python changes required. The file is located automatically by walking up from the package directory; override with the `LLM4ELN_CONFIG_PATH` env var.
+
+- **`env_vars` values** support `${ENV_VAR}` syntax — placeholders are resolved from the environment (`.env` or exported vars) at config load time. Missing variables cause a `ValueError`.
+- **Model `name`** is optional — when omitted, `value` is used as the display name.
 
 ### Dependencies
 

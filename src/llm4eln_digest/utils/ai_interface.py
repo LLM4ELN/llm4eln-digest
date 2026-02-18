@@ -1,8 +1,6 @@
 """AI interface for interacting with various LLM providers."""
 
-import os
-from collections.abc import AsyncGenerator
-from enum import Enum
+from collections.abc import AsyncGenerator, Callable
 from typing import Any
 
 from langchain_anthropic import ChatAnthropic
@@ -12,27 +10,64 @@ from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 from langchain_openai import AzureChatOpenAI
 
+from llm4eln_digest.utils.config import ModelConfig, ProviderConfig
 
-class AnthropicModel(Enum):
-    """Anthropic model options."""
+# ---------------------------------------------------------------------------
+# Provider registry: maps client_type strings to factory functions.
+# Each factory receives (provider, model_name, temperature, max_tokens)
+# and returns a BaseChatModel.
+#
+# env_vars values are already resolved (no os.getenv needed here).
+# ---------------------------------------------------------------------------
 
-    CLAUDE_SONNET_4_5 = "claude-sonnet-4-5"
-    CLAUDE_OPUS_4_5 = "claude-opus-4-5"
-    CLAUDE_HAIKU_4_5 = "claude-haiku-4-5"
-
-
-class AzureOpenAiModel(Enum):
-    """Azure OpenAI model options."""
-
-    GPT_4O = "gpt-4o-2024-11-20"
-    GPT_5_1 = "gpt-5.1-2025-11-13"
+_ClientFactory = Callable[[ProviderConfig, str, float, int], BaseChatModel]
 
 
-class ModelProvider(Enum):
-    """Supported model providers."""
+def _create_anthropic_client(
+    provider: ProviderConfig,
+    model_name: str,
+    temperature: float,
+    max_tokens: int,
+) -> BaseChatModel:
+    """Create a ChatAnthropic instance from provider config."""
+    api_key = provider.env_vars.get("api_key", "")
+    endpoint = provider.env_vars.get("endpoint", "")
 
-    ANTHROPIC = "anthropic"
-    AZURE_OPENAI = "azure_openai"
+    return ChatAnthropic(  # type: ignore[call-arg]
+        model_name=model_name,
+        temperature=temperature,
+        max_tokens_to_sample=max_tokens,
+        anthropic_api_key=api_key,
+        base_url=endpoint,
+    )
+
+
+def _create_azure_openai_client(
+    provider: ProviderConfig,
+    model_name: str,
+    temperature: float,
+    max_tokens: int,
+) -> BaseChatModel:
+    """Create an AzureChatOpenAI instance from provider config."""
+    _ = max_tokens  # Azure OpenAI does not use max_tokens at init
+
+    api_key = provider.env_vars.get("api_key", "")
+    endpoint = provider.env_vars.get("endpoint", "")
+    api_version = provider.env_vars.get("api_version", "")
+
+    return AzureChatOpenAI(  # type: ignore[call-arg]
+        azure_deployment=model_name,
+        temperature=temperature,
+        openai_api_key=api_key,
+        azure_endpoint=endpoint,
+        openai_api_version=api_version,
+    )
+
+
+PROVIDER_CLASS_REGISTRY: dict[str, _ClientFactory] = {
+    "anthropic": _create_anthropic_client,
+    "azure_openai": _create_azure_openai_client,
+}
 
 
 class AiInterface:
@@ -51,8 +86,8 @@ class AiInterface:
 
     def __init__(
         self,
-        provider: ModelProvider,
-        model_name: str | AnthropicModel | AzureOpenAiModel,
+        provider: ProviderConfig,
+        model_name: str | ModelConfig,
         temperature: float = 0.7,
         max_tokens: int = 4096,
         tools: list[BaseTool] | None = None,
@@ -61,8 +96,8 @@ class AiInterface:
         """Initialize the AI interface.
 
         Args:
-            provider: The model provider to use
-            model_name: The specific model to use (string or enum)
+            provider: The provider configuration
+            model_name: The specific model to use (string or ModelConfig)
             temperature: Sampling temperature (0-1)
             max_tokens: Maximum tokens in response
             tools: Optional list of LangChain tools
@@ -73,8 +108,8 @@ class AiInterface:
         self.conversation_history: list[BaseMessage] = []
         self.system_message = system_message
 
-        # Extract model name from enum if needed
-        model_name_str = model_name.value if isinstance(model_name, (AnthropicModel, AzureOpenAiModel)) else model_name
+        # Extract model name string from ModelConfig if needed
+        model_name_str = model_name.value if isinstance(model_name, ModelConfig) else model_name
 
         # Initialize the appropriate model
         base_model = self._initialize_model(
@@ -87,9 +122,9 @@ class AiInterface:
         # Bind tools to model if provided
         self.model: Runnable[Any, Any] = base_model.bind_tools(self.tools) if self.tools else base_model
 
+    @staticmethod
     def _initialize_model(
-        self,
-        provider: ModelProvider,
+        provider: ProviderConfig,
         model_name: str,
         temperature: float,
         max_tokens: int,
@@ -97,7 +132,7 @@ class AiInterface:
         """Initialize the chat model based on provider.
 
         Args:
-            provider: The model provider
+            provider: The provider configuration
             model_name: The model name
             temperature: Sampling temperature
             max_tokens: Maximum tokens
@@ -108,45 +143,11 @@ class AiInterface:
         Raises:
             ValueError: If provider is not supported or required env vars are missing
         """
-        if provider == ModelProvider.ANTHROPIC:
-            api_key = os.getenv("ANTHROPIC_FOUNDRY_API_KEY")
-            if not api_key:
-                msg = "ANTHROPIC_FOUNDRY_API_KEY environment variable is required"
-                raise ValueError(msg)
-
-            endpoint = os.getenv("ENDPOINT")
-            if not endpoint:
-                msg = "ENDPOINT environment variable is required for Anthropic"
-                raise ValueError(msg)
-
-            return ChatAnthropic(  # type: ignore[call-arg]
-                model_name=model_name,
-                temperature=temperature,
-                max_tokens_to_sample=max_tokens,
-                anthropic_api_key=api_key,
-                base_url=endpoint,
-            )
-
-        elif provider == ModelProvider.AZURE_OPENAI:
-            api_key = os.getenv("AZURE_OPENAI_API_KEY")
-            endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-            api_version = os.getenv("AZURE_OPENAI_API_VERSION")
-
-            if not api_key or not endpoint:
-                msg = "AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT environment variables are required"
-                raise ValueError(msg)
-
-            return AzureChatOpenAI(  # type: ignore[call-arg]
-                azure_deployment=model_name,
-                temperature=temperature,
-                openai_api_key=api_key,
-                azure_endpoint=endpoint,
-                openai_api_version=api_version,
-            )
-
-        else:
-            msg = f"Unsupported provider: {provider}"
+        factory = PROVIDER_CLASS_REGISTRY.get(provider.client_type)
+        if factory is None:
+            msg = f"Unsupported client_type: {provider.client_type}"
             raise ValueError(msg)
+        return factory(provider, model_name, temperature, max_tokens)
 
     def add_tool(self, tool: BaseTool) -> None:
         """Add a tool to the interface.
@@ -270,17 +271,21 @@ class AiInterface:
         }
 
 
-def create_anthropic_interface(
-    model: AnthropicModel = AnthropicModel.CLAUDE_SONNET_4_5,
+def create_interface(
+    provider: ProviderConfig,
+    model: str | ModelConfig,
     temperature: float = 0.7,
+    max_tokens: int = 4096,
     system_message: str | None = None,
     tools: list[BaseTool] | None = None,
 ) -> AiInterface:
-    """Create an AI interface for Anthropic models.
+    """Create an AI interface for any configured provider.
 
     Args:
-        model: The Anthropic model to use
+        provider: The provider configuration
+        model: The model to use (string or ModelConfig)
         temperature: Sampling temperature
+        max_tokens: Maximum tokens in response
         system_message: Optional system message
         tools: Optional list of tools
 
@@ -288,35 +293,10 @@ def create_anthropic_interface(
         Configured AiInterface instance
     """
     return AiInterface(
-        provider=ModelProvider.ANTHROPIC,
+        provider=provider,
         model_name=model,
         temperature=temperature,
-        tools=tools,
-        system_message=system_message,
-    )
-
-
-def create_azure_interface(
-    model: AzureOpenAiModel = AzureOpenAiModel.GPT_4O,
-    temperature: float = 0.7,
-    system_message: str | None = None,
-    tools: list[BaseTool] | None = None,
-) -> AiInterface:
-    """Create an AI interface for Azure OpenAI models.
-
-    Args:
-        model: The Azure OpenAI model to use
-        temperature: Sampling temperature
-        system_message: Optional system message
-        tools: Optional list of tools
-
-    Returns:
-        Configured AiInterface instance
-    """
-    return AiInterface(
-        provider=ModelProvider.AZURE_OPENAI,
-        model_name=model,
-        temperature=temperature,
+        max_tokens=max_tokens,
         tools=tools,
         system_message=system_message,
     )

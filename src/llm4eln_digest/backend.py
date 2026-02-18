@@ -1,5 +1,6 @@
 """Backend logic for AI interface management and message processing."""
 
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -197,6 +198,26 @@ class AiBackend:
             # Tools are enabled, use tool-aware response with execution loop
             response_text = await self._handle_message_with_tools(message)
             return {"response": response_text, "preview_updates": self.preview_updates}
+
+    async def stream_message(self, message: str) -> AsyncGenerator[str, None]:
+        """Yield response token chunks for a non-tool message.
+
+        Args:
+            message: The user's message
+
+        Yields:
+            String chunks of the AI response
+        """
+        if not self.ai_interface:
+            yield "Error: AI interface not initialized"
+            return
+        result = await self.ai_interface.get_response(message, stream=True)
+        # stream=True always returns an AsyncGenerator; guard for type safety
+        if isinstance(result, str):
+            yield result
+            return
+        async for chunk in result:
+            yield chunk
 
     async def _handle_message_with_tools(self, user_message: str) -> str:
         """Handle messages with tool execution support.

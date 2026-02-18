@@ -1,5 +1,6 @@
 """Frontend UI layer for the Chatbot application."""
 
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import panel as pn
@@ -124,6 +125,8 @@ class Frontend:
         # Create chat interface
         self.chat_interface = pn.chat.ChatInterface(
             callback=self._handle_message,
+            placeholder_text="💭 Thinking...",
+            placeholder_threshold=0.2,
             user="🧑 User",
             min_width=330,
             show_send=True,
@@ -295,23 +298,14 @@ class Frontend:
         self.chat_interface.send(
             value="""Hello! 👋
 
-I'm your ELN (Electronic Lab Notebook) assistant, I can help you with:
+I'm your ELN (Electronic Lab Notebook) Assistant, here to help you with tasks such as:
 
-- **Documentation** - Recording experiments, observations, and data
-- **Organization** - Structuring lab notes and research information
-- **Formatting** - Creating clear, well-formatted entries
-- **Analysis** - Summarizing findings and results
-- **Content Display** - Presenting information in the preview window
-
-How can I help you today?
-
-Feel free to ask me to:
-
-- Create or format lab entries
-- Organize experimental data
-- Draft protocols or procedures
-- Summarize research findings
-- Or anything else related to your lab work
+📋 Logging experiments and lab entries
+🕐 Timestamping data and records
+🧪 Organizing protocols, results, and observations
+📊 Tracking samples, reagents, and equipment
+📝 Summarizing or formatting lab notes
+Feel free to ask me anything or let me know how I can assist with your lab work!
 
 What would you like to work on?""",
             user="🤖 Assistant",
@@ -510,28 +504,42 @@ What would you like to work on?""",
             # Clear the file input even on error
             pn.state.execute(lambda: setattr(self.upload_chat_input, "value", b""))
 
-    async def _handle_message(self, contents: str, user: str, instance: pn.chat.ChatInterface) -> None:
-        """Handle incoming messages and return complete responses.
+    async def _handle_message(
+        self, contents: str, user: str, instance: pn.chat.ChatInterface
+    ) -> AsyncGenerator[str, None]:
+        """Handle incoming messages, yielding streaming updates or final responses.
+
+        When no tools are selected the response is streamed token-by-token inside
+        a collapsed ``<details>`` block.  The user can expand it to watch tokens
+        arrive in real time.  Once generation is complete the final response is
+        yielded normally (expanded, no wrapper).
+
+        When tools are selected, streaming is not feasible (multi-step tool loop),
+        so only the placeholder is shown until the final response is ready.
 
         Args:
             contents: The user's message
             user: The user identifier (unused but required by Panel)
             instance: The ChatInterface instance (unused but required by Panel)
         """
-        _ = user  # Explicitly mark as intentionally unused
+        _ = (user, instance)  # Explicitly mark as intentionally unused
 
-        # Check if tools are enabled
         use_tools = len(self._get_selected_tools()) > 0
 
-        # Process message via backend
-        result = await self.backend.process_message(contents, use_tools=use_tools)
-
-        # Handle any preview updates
-        for preview_update in result.get("preview_updates", []):
-            self._update_preview_content(preview_update["title"], preview_update["content"])
-
-        # Send AI response
-        instance.send(result["response"], user="🤖 Assistant", respond=False)
+        if not use_tools and self.backend.ai_interface:
+            # Stream tokens with a collapsible thinking indicator
+            full = ""
+            async for chunk in self.backend.stream_message(contents):
+                full += chunk
+                yield (f"<details>\n<summary>💭 Generating response...</summary>\n\n{full}\n\n</details>")
+            # Final response shown normally (expanded, no wrapper)
+            yield full
+        else:
+            # Tool-based flow: wait for the complete response
+            result = await self.backend.process_message(contents, use_tools=use_tools)
+            for preview_update in result.get("preview_updates", []):
+                self._update_preview_content(preview_update["title"], preview_update["content"])
+            yield result["response"]
 
 
 if __name__ == "__main__":

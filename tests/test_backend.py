@@ -150,6 +150,44 @@ class TestHistoryManagement:
 
 
 # ---------------------------------------------------------------------------
+# stream_message (async generator)
+# ---------------------------------------------------------------------------
+
+
+class TestStreamMessage:
+    @pytest.mark.asyncio()
+    async def test_yields_chunks(self, backend: Any) -> None:
+        """stream_message should yield each chunk from ai_interface.get_response(stream=True)."""
+
+        async def _fake_generator():
+            for token in ["Hello", " ", "world"]:
+                yield token
+
+        backend.ai_interface.get_response = AsyncMock(return_value=_fake_generator())
+
+        chunks = [chunk async for chunk in backend.stream_message("hi")]
+        assert chunks == ["Hello", " ", "world"]
+        backend.ai_interface.get_response.assert_awaited_once_with("hi", stream=True)
+
+    @pytest.mark.asyncio()
+    async def test_string_fallback(self, backend: Any) -> None:
+        """stream_message should yield the string directly if get_response returns a str."""
+        backend.ai_interface.get_response = AsyncMock(return_value="plain string")
+
+        chunks = [chunk async for chunk in backend.stream_message("hi")]
+        assert chunks == ["plain string"]
+
+    @pytest.mark.asyncio()
+    async def test_no_interface_returns_error(self, backend: Any) -> None:
+        """stream_message should yield an error string when ai_interface is None."""
+        backend.ai_interface = None
+
+        chunks = [chunk async for chunk in backend.stream_message("hi")]
+        assert len(chunks) == 1
+        assert "Error" in chunks[0]
+
+
+# ---------------------------------------------------------------------------
 # process_message (async)
 # ---------------------------------------------------------------------------
 

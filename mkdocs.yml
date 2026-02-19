@@ -1,7 +1,7 @@
 site_name: llm4eln-digest
 repo_url: https://github.com/LLM4ELN/llm4eln-digest
 site_url: https://LLM4ELN.github.io/llm4eln-digest
-site_description: This is a template repository for Python projects that use uv for their dependency management.
+site_description: LLM-powered Electronic Laboratory Notebook (ELN) digest generation with an interactive chat interface.
 site_author: llm4eln
 edit_uri: edit/main/docs/
 repo_name: LLM4ELN/llm4eln-digest
